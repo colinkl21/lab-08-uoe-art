@@ -1,7 +1,7 @@
 ---
 title: "Lab 08 - University of Edinburgh Art Collection"
-author: "Insert your name here"
-date: "Insert date here"
+author: "Colin Li"
+date: "3/14/2023"
 output: github_document
 ---
 
@@ -10,20 +10,206 @@ output: github_document
 ```{r load-packages, message = FALSE}
 library(tidyverse) 
 library(skimr)
+library(robotstxt)
+library(rvest)
+library(dplyr)
+library(tibble)
+library(stringr)
+paths_allowed("https://collections.ed.ac.uk/art)")
+
 ```
 
 ```{r load-data, message = FALSE, eval = FALSE}
 # Remove eval = FALSE or set it to TRUE once data is ready to be loaded
-uoe_art <- read_csv("data/uoe-art.csv")
+
+# set url
+first_url <- "https://collections.ed.ac.uk/art/search/*:*/Collection:%22edinburgh+college+of+art%7C%7C%7CEdinburgh+College+of+Art%22?offset="
+
+# read html page
+page <- read_html(first_url)
+
+page %>%
+  html_nodes(".iteminfo") %>%
+  html_node("h3 a") %>%
+  html_text() %>%
+  str_squish()
+
+titles <- page %>%
+  html_nodes(".iteminfo") %>%
+  html_node("h3 a") %>%
+  html_text() %>%
+  str_squish()
+
+
 ```
+
+
+```{r}
+
+web <- page %>%
+  rvest::html_nodes(".iteminfo") %>% 
+  rvest::html_node("h3 a") %>%    
+  rvest::html_attr("href") %>%  
+  stringr::str_replace(".", "https://collections.ed.ac.uk/art")
+
+web
+
+```
+How does that url compare to what we scraped above? How is it different?
+The url has https://collections.ed.ac.uk/art, but what we scraped don't. 
+
+```{r}
+
+artists <- page %>%
+  html_nodes(".artist") %>%
+  #html_node("div a")
+  html_text() %>%
+  str_squish()
+
+artists
+
+
+
+```
+
+
+```{r}
+
+first_ten <- tibble(Titles = titles, Artists = artists, Links = web)
+
+first_ten
+
+```
+
+
+```{r}
+
+#second url
+
+sec_url <- "https://collections.ed.ac.uk/art/search/*:*/Collection:%22edinburgh+college+of+art%7C%7C%7CEdinburgh+College+of+Art%22?offset=10"
+
+sec_page <- read_html(sec_url)
+
+max_length <- max(length(artists))
+
+sec_titles <- sec_page %>%
+  html_nodes(".iteminfo") %>%
+  html_node("h3 a") %>%
+  html_text()
+
+
+sec_web <- sec_page %>%
+  html_nodes(".iteminfo") %>% 
+  html_node("h3 a") %>%     
+  html_attr("href") %>%  
+  str_replace(".", "https://collections.ed.ac.uk/art")
+
+
+sec_artists <- sec_page %>%
+  html_nodes(".artist") %>%
+  #html_node("div a") #%>%
+  html_text() #%>%
+  #lapply(function(x) ifelse(length(x) == 1 & x == "", NA, x)) %>%
+  #unlist()
+
+sec_artists <- c(sec_artists, rep(NA, max_length - length(sec_artists)))
+
+tibble(sec_artists)
+
+#this code gets me 10 rows so I can combine all columns, but it is not accurate, because on the page, the missing author is on the 7th line, now it shows up in the end. When I tibble all the columns, this becomes an issues because they don't match up. :( 
+
+second_ten <- tibble(Titles = sec_titles, Artists = sec_artists, Links = sec_web)
+
+second_ten
+
+```
+
+```{r}
+
+scrape_page <- function(url){
+  
+page <- read_html(url)
+
+
+titles <- page %>%
+  html_nodes(".iteminfo") %>%
+  html_node("h3 a") %>%
+  html_text()
+
+
+web <- page %>%
+  html_nodes(".iteminfo") %>% 
+  html_node("h3 a") %>%     
+  html_attr("href") %>%  
+  str_replace(".", "https://collections.ed.ac.uk/art")
+
+
+artists <- page %>%
+  html_nodes(".artist") %>%
+  #html_node("div a") #%>%
+  html_text() 
+
+max_length <- max(length(artists), length(titles), length(web))
+
+titles <- c(titles, rep(NA, max_length - length(titles)))
+
+artists <- c(artists, rep(NA, max_length - length(artists)))
+
+web <- c(web, rep(NA, max_length - length(web)))
+
+
+tibble(Titles = titles, Artists = artists, Links = web)
+
+}
+ 
+
+#results <- map_dfr(urls, scrape_page)
+#if (length(results$Artists) < nrow(results)) {
+  #results$Artists <- c(results$Artistis, rep(NA, nrow(results) - length(results$Artists)))}
+
+
+scrape_page(sec_url)
+
+third_url <- "https://collections.ed.ac.uk/art/search/*:*/Collection:%22edinburgh+college+of+art%7C%7C%7CEdinburgh+College+of+Art%22?offset=20"
+
+scrape_page(third_url)
+
+forth_url <- "https://collections.ed.ac.uk/art/search/*:*/Collection:%22edinburgh+college+of+art%7C%7C%7CEdinburgh+College+of+Art%22?offset=30"
+
+scrape_page(forth_url)
+
+
+
+```
+
+
+
+```{r}
+
+root <- "https://collections.ed.ac.uk/art/search/*:*/Collection:%22edinburgh+college+of+art%7C%7C%7CEdinburgh+College+of+Art%22?offset="
+
+pieces <- seq(from = 0, to = 3017, by = 10)
+
+urls<-paste0(root, pieces)
+
+
+uoe_art <- map_dfr(urls, scrape_page)
+
+write.csv(uoe_art, "uoe_art")
+
+```
+
 
 ### Exercise 9
 
 ```{r separate-title-date, error = TRUE}
-uoe_art <- uoe_art %>%
-  separate(title, into = c("title", "date"), sep = "\\(") %>%
-  mutate(year = str_remove(date, "\\)") %>% as.numeric()) %>%
-  select(title, artist, year, ___)
+
+#uoe_art <- read_csv("data/uoe-art.csv")
+
+#uoe_art <- uoe_art %>%
+  #separate(title, into = c("title", "date"), sep = "\\(") %>%
+  #mutate(year = str_remove(date, "\\)") %>% as.numeric()) %>%
+  #select(title, artist, year, ___)
 ```
 
 ### Exercise 10
