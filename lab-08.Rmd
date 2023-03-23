@@ -15,6 +15,8 @@ library(rvest)
 library(dplyr)
 library(tibble)
 library(stringr)
+library(ggplot2)
+library(ggsci)
 paths_allowed("https://collections.ed.ac.uk/art)")
 
 ```
@@ -195,7 +197,7 @@ urls<-paste0(root, pieces)
 
 uoe_art <- map_dfr(urls, scrape_page)
 
-write.csv(uoe_art, "uoe_art")
+write.csv(uoe_art, "uoe_art.csv")
 
 ```
 
@@ -204,23 +206,73 @@ write.csv(uoe_art, "uoe_art")
 
 ```{r separate-title-date, error = TRUE}
 
-#uoe_art <- read_csv("data/uoe-art.csv")
+uoe_art <- read_csv("uoe_art.csv")
 
-#uoe_art <- uoe_art %>%
-  #separate(title, into = c("title", "date"), sep = "\\(") %>%
-  #mutate(year = str_remove(date, "\\)") %>% as.numeric()) %>%
-  #select(title, artist, year, ___)
+uoe_art <- uoe_art %>%
+  separate(Titles, into = c("Title", "Date"), sep = "\\(") %>%
+  mutate(Year = str_remove(Date, "\\)") %>% as.numeric()) %>%
+  select(Title, Artists, Year, Links)
+
+
 ```
 
 ### Exercise 10
 
-Remove this text, and add your answer for Exercise 10 here.
-Add code chunks as needed.
-Don't forget to label your code chunk.
-Do not use spaces in code chunk labels.
+```{r}
+
+skim(uoe_art)
+
+```
+1464 year missing 
+113 artist missing
+
 
 ### Exercise 11
 
-...
+```{r}
 
-Add exercise headings as needed.
+ggplot(uoe_art, aes(x = Year)) + geom_histogram(fill = "#A50B5E", binwidth = 1) +  theme(panel.background = element_rect(fill = "white", colour = "grey50")) 
+
+```
+Year 2 death mask
+because the format is death mask (2) (1964) on the website, so it makes sense why the code cannot capture it. 
+
+
+```{r}
+
+
+uoe_art$Year[2359] <- 1964
+
+ggplot(uoe_art, aes(x = Year)) + geom_histogram(fill = "#A50B5E", binwidth = 1) +  theme(panel.background = element_rect(fill = "white", colour = "grey50")) 
+
+```
+
+```{r}
+
+
+uoe_art %>%
+  group_by(Artists) %>%
+  count(sort = TRUE)
+
+
+
+```
+
+Emma Gillies	177
+
+I don't know them, but it makes sense because they are an alumni of the university. 
+
+```{r}
+
+
+child<-uoe_art[str_detect(uoe_art$Title, "Child"),]
+
+child<- child[complete.cases(child$Title),]
+
+child
+
+nrow(child)
+
+
+```
+11 titles that contain the word "Child"
